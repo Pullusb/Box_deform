@@ -11,29 +11,56 @@ Want to support me? [Check this page](http://www.samuelbernou.fr/donate)
 
 I first created this as a prototype following my request post : [Cage deform active tool for grease pencil](https://blender.community/c/rightclickselect/P9fbbc/)
 
-Turns out this works really well as it is, so I added some shortcuts to make easier use and voilà, (touché even)!  
-Developped for Grease pencil (only grease pencil edit mode supported for now), but mesh might be supported later if proved usefull.
-
+Turns out this works really well as it is, so I added some shortcuts for usability and voilà !  
+Developped for Grease pencil ()
 
 <!-- ![lock frame](https://github.com/Pullusb/images_repo/raw/master/PAPERMOD_Lock_frame.png) -->
 
-**How to use** (same tutorial in addon preferences)  
-In _GP edit mode_, select points then use shortcut `Ctrl + T`  
-The lattice box is generated facing your view so be sure to face canvas to avoid the need to reproject (auto reproject option might be added)   
+**How to use**: (same tutorial in addon preferences)  
+Use the shortcut `Ctrl + T` in available modes  
+The lattice box is generated facing your view so be sure to face canvas to avoid unintentional anamorphosis offset  
 Then use following shortcuts (also displayed in topbar):  
 
-`Spacebar` / `Enter` : **Confirm**  
-`Delete` / `Backspace` / `ctrl+T` / `Tab`(twice) : **Cancel**  
-`M` : **Toggle Linear and Spline** mode at any moment  
-`1-9 top row number` : Shortcut to **subdivide box**  
-`Ctrl + arrows-keys` : **Subdivide** the box in **X/Y axis individually** for custom deformation
+**Modes and deformation target**:
+
+- Object mode : The whole GP object is deformed
+- GPencil Edit mode : Deform Selected points
+- Gpencil Paint : Deform last Strokes
+<!-- - Lattice edit : Revive the modal after a ctrl+Z (special case) -->
+
+**Shortcuts** (also displayed in topbar):
+
+- `Spacebar` / `Enter` : **Confirm**  
+- `Delete` / `Backspace` / `ctrl+T` / `Tab`(twice) : **Cancel**  
+- `M` : **Toggle Linear and Spline** mode at any moment  
+- `1-9 top row number` : Shortcut to **subdivide box**  
+- `Ctrl + arrows-keys` : **Subdivide** the box incrementally in **individual X/Y axis**  
+
+> Notes : If you return in box deform after applying with a ctrl+Z, you need to hit ctrl+T again to revive the modal.
+A cancel warning will be displayed the first time you hit Tab (to avoid mis-canceling)
 
 
-Note: A cancel warning will be displayed the first time you hit Tab (to avoid mis-canceling)
+### Todo:
+
+- Find a way to detect other modal to use `ESC` key for cancelling when only one running
+- target meshes
 
 ---
 
 ## Changelog:
 
- 2020-05-23 v0.1.1
-  - first stable version
+2020-05-26 V0.2.0:
+
+- Feature : Allow other modes, Object deform whole GP object, GP Paint get the last stroke
+- Feature (fix) : possibility to relaunch the modal after returning in lattice edit with ctrl+Z
+- UX : temporarily enable release confirm for more natural control
+- UX : temporarily lower mouse/tablet drag threshold for more responsive control when moving points
+- syntax : renamed ops
+
+2020-05-25 V0.1.2:
+
+- fix: right depth, apply matrix_world to GP point coordinate
+
+ 2020-05-23 v0.1.1:
+
+- first stable version

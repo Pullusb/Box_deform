@@ -15,7 +15,7 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 1, 1),
+"version": (0, 2, 0),
 "blender": (2, 83, 0),
 "location": "Ctrl+T in GP edit mode",
 "warning": "",
@@ -25,14 +25,18 @@ bl_info = {
 }
 
 ''' TODO
-    ## add option to reproject once finished
-        # maybe with a modifier key
-    ## add option to place lattice according to object transform instead of view (no real need if stay GP only)
-        # Check lattice stuff in speedflow for obj traitement : speedflow_companion_2_80\lattice.py
-    ## whats the most proper way to add addon keymaps and expose to customisation in addon prefs...
-    ##  if in obj mode, consider all points (or even just get bbox if in object + local axis mode)
+    # hard : Manage ESC during other modal ?
+    # hard : (optional) one big undo instead of multi undo ? (how to cancel other ops undo stack during modal...)
 
-    #  make a generic mesh handling (and add another shortcut for Mesh  edit)
+    # optional : add option to reproject once finished
+        # maybe with a modifier key
+
+    # add option to place lattice according to object transform instead of view (no real need if stay GP only)
+    
+    # make a generic mesh handling (and add another shortcut for Mesh  edit)
+    
+    # whats the most proper way to add addon keymaps and expose to customisation in addon prefs...
+    #  if in obj mode, consider all points (or even just get bbox if in object + local axis mode)
 '''   
 
 import bpy
@@ -48,6 +52,15 @@ def region_to_location(viewcoords, depthcoords):
     from bpy_extras import view3d_utils
     return view3d_utils.region_2d_to_location_3d(bpy.context.region, bpy.context.space_data.region_3d, viewcoords, depthcoords)
 
+def assign_vg(obj, vg_name):
+    ## create vertex group
+    vg = obj.vertex_groups.get(vg_name)
+    if vg:
+        # remove to start clean
+        obj.vertex_groups.remove(vg)
+    vg = obj.vertex_groups.new(name=vg_name)
+    bpy.ops.gpencil.vertex_group_assign()
+    return vg
 
 def view_cage(obj):
 
@@ -58,41 +71,81 @@ def view_cage(obj):
 
     coords = []
 
-    for l in gpl:
-        if l.lock or l.hide:
-            continue
-        if gp.use_multiedit:
-            target_frames = [f for f in l.active_frame if f.selected]
-        else:
-            target_frames = [l.active_frame]
-        
-        for f in target_frames:
-            for s in f.strokes:
-                if not s.select:
-                    continue
-                for p in s.points:
-                    if p.select:
-                        coords.append(p.co)
+    ## get points
+    if bpy.context.mode == 'EDIT_GPENCIL':
+        for l in gpl:
+            if l.lock or l.hide:
+                continue
+            if gp.use_multiedit:
+                target_frames = [f for f in l.active_frame if f.selected]
+            else:
+                target_frames = [l.active_frame]
+            
+            for f in target_frames:
+                for s in f.strokes:
+                    if not s.select:
+                        continue
+                    for p in s.points:
+                        if p.select:
+                            # get real location
+                            coords.append(obj.matrix_world @ p.co)
 
-    if len(coords) < 2:
+    elif bpy.context.mode == 'OBJECT':#object mode -> all points
+        for l in gpl:# if l.hide:continue# only visible ? (might break things)
+            for s in l.active_frame.strokes:
+                for p in s.points:
+                    coords.append(obj.matrix_world @ p.co)
+    
+    elif bpy.context.mode == 'PAINT_GPENCIL':
+        # get last stroke points coordinated
+        if not len(gpl.active.active_frame.strokes):
+            return 'No stroke found to deform'
+        coords = [obj.matrix_world @ p.co for p in gpl.active.active_frame.strokes[-1].points]
+    
+    else:
+        return 'Wrong mode !'
+
+
+    if bpy.context.mode in ('EDIT_GPENCIL', 'PAINT_GPENCIL') and len(coords) < 2:
+        #dont block object mod
         return 'Less than two point selected'
 
+    vg_name = 'lattice_cage_deform_group'
+
     if bpy.context.mode == 'EDIT_GPENCIL':
-        ## create vertex group
-        vg_name = 'lattice_cage_deform_group'
-        vg = obj.vertex_groups.get(vg_name)
-        if vg:
-            # remove to start clean
-            obj.vertex_groups.remove(vg)
-        vg = obj.vertex_groups.new(name=vg_name)
-        bpy.ops.gpencil.vertex_group_assign()
+        vg = assign_vg(obj, vg_name)
+    
+    if bpy.context.mode == 'PAINT_GPENCIL':
+        # points cannot be assign to API yet(ugly and slow workaround but only way)
+        # -> https://developer.blender.org/T56280 so, hop'in'ops !
+        
+        # store selection and deselect all
+        plist = []
+        for l in gpl:
+            for s in l.active_frame.strokes:
+                for p in s.points:
+                    plist.append([p, p.select])
+                    p.select = False
+        
+        # select
+        ## foreach_set does not update
+        # gpl.active.active_frame.strokes[-1].points.foreach_set('select', [True]*len(gpl.active.active_frame.strokes[-1].points))
+        for p in gpl.active.active_frame.strokes[-1].points:
+            p.select = True
+        
+        # assign
+        bpy.ops.object.mode_set(mode='EDIT_GPENCIL')
+        vg = assign_vg(obj, vg_name)
 
-    ## points cannot be assign to API yet : https://developer.blender.org/T56280 so, hop'in'ops !
+        # restore
+        for pl in plist:
+            pl[0].select = pl[1]
+        
 
-    ## View axis Mode 
+    ## View axis Mode ---
 
     ## get view coordinate of all points
-    coords2D = [location_to_region(obj.matrix_world @ co) for co in coords]
+    coords2D = [location_to_region(co) for co in coords]
 
     # find centroid for depth (or more economic, use obj origin...)
     centroid = np.mean(coords, axis=0)
@@ -109,7 +162,7 @@ def view_cage(obj):
 
     centroid2d = (center_x,center_y)
     center = region_to_location(centroid2d, centroid)
-    bpy.context.scene.cursor.location = center#Dbg
+    # bpy.context.scene.cursor.location = center#Dbg
 
 
     #corner Bottom-left to Bottom-right
@@ -165,7 +218,7 @@ def view_cage(obj):
     mod = obj.grease_pencil_modifiers.new('tmp_lattice', 'GP_LATTICE')
 
     # move to top if modifiers exists
-    for i in range(len(obj.grease_pencil_modifiers)):
+    for _ in range(len(obj.grease_pencil_modifiers)):
         bpy.ops.object.gpencil_modifier_move_up(modifier='tmp_lattice')
 
     mod.object = cage
@@ -176,6 +229,9 @@ def view_cage(obj):
     #Go in object mode if not already
     if bpy.context.mode != 'OBJECT':
         bpy.ops.object.mode_set(mode='OBJECT')
+
+    # Store name of deformed object in case of 'revive modal' 
+    cage.vertex_groups.new(name=obj.name)
 
     ## select and make cage active
     # cage.select_set(True)
@@ -226,11 +282,16 @@ def cancel_cage(gp_obj, cage):
 
 class BOXD_OT_lattice_gp_deform(bpy.types.Operator):
     """Create a lattice to use as transform"""
-    bl_idname = "gp.lattice_deform"
-    bl_label = "GP free deform"
+    bl_idname = "gp.box_deform"
+    bl_label = "Box deform"
     bl_description = "Use lattice for free box transforms on grease pencil points"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context):
+        return context.object is not None and context.object.type in ('GPENCIL','LATTICE')
+
+    # local variable
     tab_press_ct = 0
 
     def modal(self, context, event):
@@ -317,10 +378,10 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
                 'KEY_BSPLINE' if self.lat.interpolation_type_u == 'KEY_LINEAR' else 'KEY_LINEAR'#result assign to 3 prop above
             return {"RUNNING_MODAL"}
 
-
         # Valid
         if event.type in {'RET', 'SPACE'}:
             if event.value == 'PRESS':
+                self.restore_prefs(context)
                 back_to_obj(self.gp_obj, self.gp_mode, self.org_lattice_toolset, context)
                 apply_cage(self.gp_obj, self.cage)#must be in object mode
                 
@@ -352,11 +413,29 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
 
 
     def cancel(self, context):
+        self.restore_prefs(context)
         back_to_obj(self.gp_obj, self.gp_mode, self.org_lattice_toolset, context)
         cancel_cage(self.gp_obj, self.cage)
         context.area.header_text_set(None)     
         if self.gp_mode != 'OBJECT':
             bpy.ops.object.mode_set(mode=self.gp_mode)
+
+    def store_prefs(self, context):
+        # store_valierables <-< preferences
+        context.scene.boxdeform.use_drag_immediately = context.preferences.inputs.use_drag_immediately 
+        context.scene.boxdeform.drag_threshold_mouse = context.preferences.inputs.drag_threshold_mouse 
+        context.scene.boxdeform.drag_threshold_tablet = context.preferences.inputs.drag_threshold_tablet 
+
+    def restore_prefs(self, context):
+        # preferences <-< store_valierables
+        context.preferences.inputs.use_drag_immediately = context.scene.boxdeform.use_drag_immediately
+        context.preferences.inputs.drag_threshold_mouse = context.scene.boxdeform.drag_threshold_mouse
+        context.preferences.inputs.drag_threshold_tablet = context.scene.boxdeform.drag_threshold_tablet
+    
+    def set_prefs(self, context):
+        context.preferences.inputs.use_drag_immediately = True
+        context.preferences.inputs.drag_threshold_mouse = 1
+        context.preferences.inputs.drag_threshold_tablet = 3
 
     def invoke(self, context, event):
         ## Restrict to 3D view
@@ -367,13 +446,34 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
         if not context.object:#do it in poll ?
             self.report({'ERROR'}, "No active objects found")
             return {'CANCELLED'}
-        
+
+        self.prefs = get_addon_prefs()#get_prefs
+        self.org_lattice_toolset = None
+        self.gp_mode = 'EDIT_GPENCIL'
+
+        # --- special Case of lattice revive modal, just after ctrl+Z back into lattice with modal stopped
+        if context.mode == 'EDIT_LATTICE' and context.object.name == 'lattice_cage_deform' and len(context.object.vertex_groups):
+            self.gp_obj = context.scene.objects.get(context.object.vertex_groups[0].name)
+            if not self.gp_obj:
+                self.report({'ERROR'}, "/!\\ Box Deform : Cannot find object to target")
+                return {'CANCELLED'}
+            if not self.gp_obj.grease_pencil_modifiers.get('tmp_lattice'):
+                self.report({'ERROR'}, "/!\\ No 'tmp_lattice' modifiers on GP object")
+                return {'CANCELLED'}
+            self.cage = context.object
+            self.lat = self.cage.data
+            self.set_prefs(context)
+
+            context.window_manager.modal_handler_add(self)
+            return {'RUNNING_MODAL'}
+
         if context.object.type != 'GPENCIL':
             self.report({'ERROR'}, "Works only on gpencil objects")
             return {'CANCELLED'}
 
-        if context.mode not in ('OBJECT', 'PAINT_GPENCIL', 'EDIT_GPENCIL'):
-            self.report({'ERROR'}, "Works only in following modes: object, paint, edit")#maybe not paint for now
+        #paint need VG workaround. object need good shortcut
+        if context.mode not in ('EDIT_GPENCIL', 'OBJECT', 'PAINT_GPENCIL'):
+            self.report({'ERROR'}, "Works only in following GPencil modes: edit")
             return {'CANCELLED'}
 
         self.gp_obj = context.object
@@ -392,23 +492,27 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
             self.report({'ERROR'}, "Beg your pardon, but your object already has a lattice modifier (it happens that GP object can only have one lattice modifiers).\nDevotely yours, Alfred.")#maybe not paint for now
             return {'CANCELLED'}
         
-        self.prefs = get_addon_prefs()#get_prefs
 
         self.gp_mode = context.mode#store mode for restore
         
         # All good, create lattice and start modal
 
-        # Create lattice (and siwtch to lattice edit) ----
+        # Create lattice (and switch to lattice edit) ----
         self.cage = view_cage(self.gp_obj)
         if isinstance(self.cage, str):#error, cage not created, display error
             self.report({'ERROR'}, self.cage)
+            return {'CANCELLED'}
         
         self.lat = self.cage.data
 
-        self.org_lattice_toolset = None
+        ## usability toggles
         if self.prefs.use_clic_drag:#Store the active tool since we will change it
             self.org_lattice_toolset = bpy.context.workspace.tools.from_space_view3d_mode(bpy.context.mode, create=False).idname# Tweaktoolcode    
-
+        
+        #store (scene properties needed in case of ctrlZ revival)
+        self.store_prefs(context)
+        self.set_prefs(context)
+        
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
@@ -441,8 +545,6 @@ class BOXD_addon_prefs(bpy.types.AddonPreferences):
     def draw(self, context):
             layout = self.layout
             # layout.use_property_split = True
-            # flow = layout.grid_flow(row_major=True, columns=0, even_columns=True, even_rows=False, align=False)
-            # layout = flow.column()
             row= layout.row(align=True)
             row.prop(self, "pref_tabs", expand=True)
 
@@ -456,25 +558,52 @@ class BOXD_addon_prefs(bpy.types.AddonPreferences):
                 layout.prop(self, "default_deform_type")
 
             if self.pref_tabs == 'TUTO':
-                
+
+                #**Behavior from context mode**
                 col = layout.column()
                 col.label(text="Usage:", icon='MOD_LATTICE')
-                col.label(text="In GP edit mode, select points to deform then use shortcut 'Ctrl+T'")
+                col.label(text="Use the shortcut 'Ctrl+T' in available modes (listed below)")
                 col.label(text="The lattice box is generated facing your view (be sure to face canvas if you want to stay on it)")
-                col.label(text="Then use following shortcuts (a help will be displayed the topbar)")
+                col.label(text="Use shortcuts below to deform(a help will be displayed in the topbar)")
 
                 col.separator()
                 col.label(text="Shortcuts:", icon='HAND')
                 col.label(text="Spacebar / Enter : Confirm")
                 col.label(text="Delete / Backspace / Tab(twice) / ctrl+T : Cancel")
                 col.label(text="M : Toggle between Linear and Spline mode at any moment")
-                col.label(text="1-9 top row number : Shortcut to subdivide the box")
-                col.label(text="Ctrl + arrows-keys : Subdivide the box in X/Y axis individually for custom deformation")
+                col.label(text="1-9 top row number : Subdivide the box")
+                col.label(text="Ctrl + arrows-keys : Subdivide the box incrementally in individual X/Y axis")
 
                 col.separator()
-                col.label(text="Note: A cancel warning will be displayed the first time you hit Tab")
-                
-                #col.operator("wm.url_open", text="demo").url = "DEMO URL"
+                col.label(text="Modes and deformation target:", icon='PIVOT_BOUNDBOX')
+                col.label(text="- Object mode : The whole GP object is deformed")
+                col.label(text="- GPencil Edit mode : Deform Selected points")
+                col.label(text="- Gpencil Paint : Deform last Strokes")
+                # col.label(text="- Lattice edit : Revive the modal after a ctrl+Z")
+
+                col.separator()
+                col.label(text="Notes:", icon='TEXT')
+                col.label(text="If you return in box deform after applying (with a ctrl+Z), you need to hit 'Ctrl+T' again to revive the modal.")
+
+                col.label(text="A cancel warning will be displayed the first time you hit Tab")
+
+                #col.operator("wm.url_open", text="Demo").url = "DEMO URL"
+
+
+## --- PROPERTIES (store prefs)
+
+class BOXD_PGT_store_default(bpy.types.PropertyGroup) :
+    # use_drag_immediately - bool (default False)
+    # drag_threshold_mouse - int (px) default 3
+    # drag_threshold_tablet - int (px) default 10
+    use_drag_immediately : bpy.props.BoolProperty(
+        name="Realease Confirms", description="settings in mouse input", default=False)
+
+    drag_threshold_mouse : bpy.props.IntProperty(
+        name="Mouse Drag Threshold", description="settings in mouse input", default=3)
+
+    drag_threshold_tablet : bpy.props.IntProperty(
+        name="Tablet Drag Threshold", description="settings in mouse input", default=10)
 
 
 def get_addon_prefs():
@@ -489,10 +618,22 @@ def get_addon_prefs():
 addon_keymaps = []
 def register_keymaps():
     addon = bpy.context.window_manager.keyconfigs.addon
-    km = addon.keymaps.new(name = "Grease Pencil Stroke Edit Mode", space_type = "EMPTY", region_type='WINDOW')
-    kmi = km.keymap_items.new("gp.lattice_deform", type ='T', value = "PRESS", ctrl = True)
-    # to eventually launch with options kmi.properties.type = 
+
+    km = addon.keymaps.new(name = "Grease Pencil", space_type = "EMPTY", region_type='WINDOW')
+    # km = addon.keymaps.new(name = "Grease Pencil Stroke Edit Mode", space_type = "EMPTY", region_type='WINDOW')
+    kmi = km.keymap_items.new("gp.box_deform", type ='T', value = "PRESS", ctrl = True)
+    kmi.repeat = False
     addon_keymaps.append(km)
+
+    # km = addon.keymaps.new(name = "Object Mode", space_type = "VIEW_3D", region_type='WINDOW')
+    # kmi = km.keymap_items.new("gp.box_deform", type ='T', value = "PRESS", ctrl = True)
+    # kmi.repeat = False
+    # addon_keymaps.append(km)
+
+    # km = addon.keymaps.new(name = "Lattice", space_type = "EMPTY", region_type='WINDOW')
+    # kmi = km.keymap_items.new("gp.box_deform", type ='T', value = "PRESS", ctrl = True)
+    # kmi.repeat = False
+    # addon_keymaps.append(km)
 
 def unregister_keymaps():
     for km in addon_keymaps:
@@ -503,19 +644,27 @@ def unregister_keymaps():
 
 ### --- REGISTER ---
 
+classes = (
+BOXD_addon_prefs,
+BOXD_PGT_store_default,
+BOXD_OT_lattice_gp_deform,
+)
+
 def register():
     if bpy.app.background:
         return
-    bpy.utils.register_class(BOXD_addon_prefs)
-    bpy.utils.register_class(BOXD_OT_lattice_gp_deform)
+    for cls in classes:
+        bpy.utils.register_class(cls)
+    bpy.types.Scene.boxdeform = bpy.props.PointerProperty(type = BOXD_PGT_store_default)
     register_keymaps()
 
 def unregister():
     if bpy.app.background:
         return
     unregister_keymaps()
-    bpy.utils.unregister_class(BOXD_OT_lattice_gp_deform)
-    bpy.utils.unregister_class(BOXD_addon_prefs)
+    for cls in reversed(classes):
+        bpy.utils.unregister_class(cls)
+    del bpy.types.Scene.boxdeform
 
 if __name__ == "__main__":
     register()
