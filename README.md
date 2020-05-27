@@ -36,8 +36,13 @@ Then use following shortcuts (also displayed in topbar):
 - `1-9 top row number` : Shortcut to **subdivide box**  
 - `Ctrl + arrows-keys` : **Subdivide** the box incrementally in **individual X/Y axis**  
 
-> Notes : If you return in box deform after applying with a ctrl+Z, you need to hit ctrl+T again to revive the modal.
+Notes :
+
+If you return in box deform after applying with a ctrl+Z, you need to hit ctrl+T again to revive the modal.
+
 A cancel warning will be displayed the first time you hit Tab (to avoid mis-canceling)
+
+Multiframe edit selection works but you will only see the current frame during the modal
 
 
 ### Todo:
@@ -48,6 +53,10 @@ A cancel warning will be displayed the first time you hit Tab (to avoid mis-canc
 ---
 
 ## Changelog:
+
+2020-05-26 V0.2.1:
+
+- fix : correct multiframe edit bug
 
 2020-05-26 V0.2.0:
 

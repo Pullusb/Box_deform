@@ -15,7 +15,7 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 2, 0),
+"version": (0, 2, 1),
 "blender": (2, 83, 0),
 "location": "Ctrl+T in GP edit mode",
 "warning": "",
@@ -77,7 +77,7 @@ def view_cage(obj):
             if l.lock or l.hide:
                 continue
             if gp.use_multiedit:
-                target_frames = [f for f in l.active_frame if f.selected]
+                target_frames = [f for f in l.frames if f.select]
             else:
                 target_frames = [l.active_frame]
             
