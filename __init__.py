@@ -25,6 +25,7 @@ bl_info = {
 }
 
 ''' TODO
+    # EZ fix: when draw on back is used in paint mode
     # hard : Manage ESC during other modal ?
     # hard : (optional) one big undo instead of multi undo ? (how to cancel other ops undo stack during modal...)
 
@@ -381,6 +382,7 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
         # Valid
         if event.type in {'RET', 'SPACE'}:
             if event.value == 'PRESS':
+                #bpy.ops.ed.flush_edits()# TODO: find a way to get rid of undo-registered lattices tweaks
                 self.restore_prefs(context)
                 back_to_obj(self.gp_obj, self.gp_mode, self.org_lattice_toolset, context)
                 apply_cage(self.gp_obj, self.cage)#must be in object mode
@@ -390,6 +392,7 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
                     bpy.ops.object.mode_set(mode=self.gp_mode)
 
                 context.area.header_text_set(None)#reset header
+
                 return {'FINISHED'}
         
         # Abort ---
@@ -405,7 +408,7 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
             self.cancel(context)
             return {'CANCELLED'}
 
-        if event.type in {'DEL', 'BACK_SPACE'} or self.tab_press_ct >= 2:#'ESC', 
+        if event.type in {'DEL', 'BACK_SPACE'} or self.tab_press_ct >= 2:#'ESC',
             self.cancel(context)
             return {'CANCELLED'}
 
@@ -512,7 +515,6 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
         #store (scene properties needed in case of ctrlZ revival)
         self.store_prefs(context)
         self.set_prefs(context)
-        
         context.window_manager.modal_handler_add(self)
         return {'RUNNING_MODAL'}
 
