@@ -3,6 +3,8 @@ Blender addon - Modal that create temporary deforming rectangle around selected 
 
 ## [Download latest](https://github.com/Pullusb/Box_deform/archive/master.zip)
 
+## [Youtube Demo](https://youtu.be/gY9Ni5r6bc8)
+
 Want to support me? [Check this page](http://www.samuelbernou.fr/donate)
 
 ---  
