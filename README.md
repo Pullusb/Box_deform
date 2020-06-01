@@ -14,9 +14,11 @@ Want to support me? [Check this page](http://www.samuelbernou.fr/donate)
 I first created this as a prototype following my request post : [Cage deform active tool for grease pencil](https://blender.community/c/rightclickselect/P9fbbc/)
 
 Turns out this works really well as it is, so I added some shortcuts for usability and voilà !  
-Developped for Grease pencil ()
+Developped for Grease pencil, (mesh might be suppoted in the future.)
 
-<!-- ![lock frame](https://github.com/Pullusb/images_repo/raw/master/PAPERMOD_Lock_frame.png) -->
+Exemple with lattice subdiv and spline deformations.
+
+![box demo](https://github.com/Pullusb/images_repo/raw/master/box_deform_demo.gif)
 
 **How to use**: (same tutorial in addon preferences)  
 Use the shortcut `Ctrl + T` in available modes  
