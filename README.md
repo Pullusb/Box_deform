@@ -1,4 +1,5 @@
 # Grease pencil Box deform 
+
 Blender addon - Modal that create temporary deforming rectangle around selected GP points.
 
 ## [Download latest](https://github.com/Pullusb/Box_deform/archive/master.zip)
@@ -58,11 +59,16 @@ Multiframe edit selection works but you will only see the current frame during t
 
 ## Changelog:
 
-2020-05-26 V0.2.1:
+0.2.2 - 2020-06-09:
+
+- fix : Paint mode, use bottom stroke when using '_draw on back_' option
+- fix : Paint mode, scan strokes from active layer only
+
+0.2.1 - 2020-05-26:
 
 - fix : correct multiframe edit bug
 
-2020-05-26 V0.2.0:
+0.2.0 - 2020-05-26:
 
 - Feature : Allow other modes, Object deform whole GP object, GP Paint get the last stroke
 - Feature (fix) : possibility to relaunch the modal after returning in lattice edit with ctrl+Z
@@ -70,10 +76,10 @@ Multiframe edit selection works but you will only see the current frame during t
 - UX : temporarily lower mouse/tablet drag threshold for more responsive control when moving points
 - syntax : renamed ops
 
-2020-05-25 V0.1.2:
+0.1.2 - 2020-05-25:
 
 - fix: right depth, apply matrix_world to GP point coordinate
 
- 2020-05-23 v0.1.1:
+0.1.1 - 2020-05-23:
 
 - first stable version

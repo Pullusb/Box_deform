@@ -15,7 +15,7 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 2, 1),
+"version": (0, 2, 2),
 "blender": (2, 83, 0),
 "location": "Ctrl+T in GP edit mode",
 "warning": "",
@@ -101,7 +101,11 @@ def view_cage(obj):
         # get last stroke points coordinated
         if not len(gpl.active.active_frame.strokes):
             return 'No stroke found to deform'
-        coords = [obj.matrix_world @ p.co for p in gpl.active.active_frame.strokes[-1].points]
+        
+        paint_id = -1
+        if bpy.context.scene.tool_settings.use_gpencil_draw_onback:
+            paint_id = 0
+        coords = [obj.matrix_world @ p.co for p in gpl.active.active_frame.strokes[paint_id].points]
     
     else:
         return 'Wrong mode !'
@@ -122,16 +126,15 @@ def view_cage(obj):
         
         # store selection and deselect all
         plist = []
-        for l in gpl:
-            for s in l.active_frame.strokes:
-                for p in s.points:
-                    plist.append([p, p.select])
-                    p.select = False
+        for s in gpl.active.active_frame.strokes:
+            for p in s.points:
+                plist.append([p, p.select])
+                p.select = False
         
         # select
         ## foreach_set does not update
-        # gpl.active.active_frame.strokes[-1].points.foreach_set('select', [True]*len(gpl.active.active_frame.strokes[-1].points))
-        for p in gpl.active.active_frame.strokes[-1].points:
+        # gpl.active.active_frame.strokes[paint_id].points.foreach_set('select', [True]*len(gpl.active.active_frame.strokes[paint_id].points))
+        for p in gpl.active.active_frame.strokes[paint_id].points:
             p.select = True
         
         # assign
