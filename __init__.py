@@ -15,9 +15,9 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 2, 2),
+"version": (0, 2, 3),
 "blender": (2, 83, 0),
-"location": "Ctrl+T in GP edit mode",
+"location": "Ctrl+T in GP object/edit/paint mode",
 "warning": "",
 "doc_url": "https://github.com/Pullusb/Box_deform",
 "category": "3D View",
@@ -25,7 +25,6 @@ bl_info = {
 }
 
 ''' TODO
-    # EZ fix: when draw on back is used in paint mode
     # hard : Manage ESC during other modal ?
     # hard : (optional) one big undo instead of multi undo ? (how to cancel other ops undo stack during modal...)
 
@@ -42,7 +41,6 @@ bl_info = {
 
 import bpy
 import numpy as np
-# from math import radians, degrees
 
 
 def location_to_region(worldcoords):
@@ -75,7 +73,7 @@ def view_cage(obj):
     ## get points
     if bpy.context.mode == 'EDIT_GPENCIL':
         for l in gpl:
-            if l.lock or l.hide:
+            if l.lock or l.hide or not l.active_frame:#or len(l.frames)
                 continue
             if gp.use_multiedit:
                 target_frames = [f for f in l.frames if f.select]
@@ -93,12 +91,17 @@ def view_cage(obj):
 
     elif bpy.context.mode == 'OBJECT':#object mode -> all points
         for l in gpl:# if l.hide:continue# only visible ? (might break things)
+            if not len(l.frames):
+                continue#skip frameless layer
             for s in l.active_frame.strokes:
                 for p in s.points:
                     coords.append(obj.matrix_world @ p.co)
     
     elif bpy.context.mode == 'PAINT_GPENCIL':
         # get last stroke points coordinated
+        if not gpl.active or not gpl.active.active_frame:
+            return 'No frame to deform'
+
         if not len(gpl.active.active_frame.strokes):
             return 'No stroke found to deform'
         
@@ -108,11 +111,14 @@ def view_cage(obj):
         coords = [obj.matrix_world @ p.co for p in gpl.active.active_frame.strokes[paint_id].points]
     
     else:
-        return 'Wrong mode !'
+        return 'Wrong mode!'
 
+    if not coords:
+        ## maybe silent return instead (need special str code to manage errorless return)
+        return 'No points found!'
 
     if bpy.context.mode in ('EDIT_GPENCIL', 'PAINT_GPENCIL') and len(coords) < 2:
-        #dont block object mod
+        # Dont block object mod
         return 'Less than two point selected'
 
     vg_name = 'lattice_cage_deform_group'
@@ -474,12 +480,14 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
             return {'RUNNING_MODAL'}
 
         if context.object.type != 'GPENCIL':
-            self.report({'ERROR'}, "Works only on gpencil objects")
+            # self.report({'ERROR'}, "Works only on gpencil objects")
+            ## silent return 
             return {'CANCELLED'}
 
         #paint need VG workaround. object need good shortcut
         if context.mode not in ('EDIT_GPENCIL', 'OBJECT', 'PAINT_GPENCIL'):
-            self.report({'ERROR'}, "Works only in following GPencil modes: edit")
+            # self.report({'WARNING'}, "Works only in following GPencil modes: edit")# ERROR
+            ## silent return 
             return {'CANCELLED'}
 
         self.gp_obj = context.object

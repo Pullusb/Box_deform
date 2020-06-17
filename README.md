@@ -59,6 +59,11 @@ Multiframe edit selection works but you will only see the current frame during t
 
 ## Changelog:
 
+0.2.3 - 2020-06-17:
+
+- fix : Bug when a layer has no frames (prevent scanning frameless layers)
+- UX : Silent cancel if not GPencil object or wrong mode is used
+
 0.2.2 - 2020-06-09:
 
 - fix : Paint mode, use bottom stroke when using '_draw on back_' option
