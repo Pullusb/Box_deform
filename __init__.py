@@ -15,7 +15,7 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 2, 3),
+"version": (0, 2, 4),
 "blender": (2, 83, 0),
 "location": "Ctrl+T in GP object/edit/paint mode",
 "warning": "",
@@ -26,9 +26,9 @@ bl_info = {
 
 ''' TODO
     # hard : Manage ESC during other modal ?
-    # hard : (optional) one big undo instead of multi undo ? (how to cancel other ops undo stack during modal...)
+    # hard (optional) :  one big undo instead of multi undo ? (how to cancel other ops undo stack during modal...)
 
-    # optional : add option to reproject once finished
+    # optional : option to reproject once finished
         # maybe with a modifier key
 
     # add option to place lattice according to object transform instead of view (no real need if stay GP only)
@@ -314,6 +314,16 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
         #tester
         # if event.type not in {'MOUSEMOVE', 'INBETWEEN_MOUSEMOVE'}: print('key:', event.type, 'value:', event.value)
 
+        ## Handle ctrl+Z
+        if event.type in {'Z'} and event.value == 'PRESS' and event.ctrl:
+            ## Disable (capture key)
+            return {"RUNNING_MODAL"}
+            ## Not found how possible to find modal start point in undo stack to 
+            # print('ops list', context.window_manager.operators.keys())
+            # if context.window_manager.operators:#can be empty
+            #     print('\nlast name', context.window_manager.operators[-1].name)
+
+
         # Single keys
         if event.type in {'H'}:
             if event.value == 'PRESS':
@@ -489,6 +499,9 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
             # self.report({'WARNING'}, "Works only in following GPencil modes: edit")# ERROR
             ## silent return 
             return {'CANCELLED'}
+
+        # bpy.ops.ed.undo_push(message="Box deform step")#don't work as expected (+ might be obsolete)
+        # https://developer.blender.org/D6147 <- undo forget 
 
         self.gp_obj = context.object
         # Clean potential failed previous job (delete tmp lattice)

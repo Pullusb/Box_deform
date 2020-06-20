@@ -59,6 +59,10 @@ Multiframe edit selection works but you will only see the current frame during t
 
 ## Changelog:
 
+0.2.4 - 2020-06-20:
+
+- fix : Disable 'ctrl+Z' shortcut during modal (avoid crash when undoing in)
+
 0.2.3 - 2020-06-17:
 
 - fix : Bug when a layer has no frames (prevent scanning frameless layers)
@@ -83,7 +87,7 @@ Multiframe edit selection works but you will only see the current frame during t
 
 0.1.2 - 2020-05-25:
 
-- fix: right depth, apply matrix_world to GP point coordinate
+- fix : right depth, apply matrix_world to GP point coordinate
 
 0.1.1 - 2020-05-23:
 
