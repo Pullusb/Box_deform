@@ -37,7 +37,7 @@ Then use following shortcuts (also displayed in topbar):
 
 - `Spacebar` / `Enter` : **Confirm**  
 - `Delete` / `Backspace` / `ctrl+T` / `Tab`(twice) : **Cancel**  
-- `M` : **Toggle Linear and Spline** mode at any moment  
+- `M` : **Toggle Linear and Spline** mode at any moment (disable autoswap on first use)
 - `1-9 top row number` : Shortcut to **subdivide box**  
 - `Ctrl + arrows-keys` : **Subdivide** the box incrementally in **individual X/Y axis**  
 
@@ -58,6 +58,14 @@ Multiframe edit selection works but you will only see the current frame during t
 ---
 
 ## Changelog:
+
+0.2.5 - 2020-06-23:
+
+- fix: paint mode deforming strokes on another layer
+- fix: force view overlay during modal to avoid losing sight of lattice
+- feature: autoswap mode between Linear and Bspline
+- UI: preference checkbox to disable new autoswap feature
+- code: refactor, deleted useless property group
 
 0.2.4 - 2020-06-20:
 

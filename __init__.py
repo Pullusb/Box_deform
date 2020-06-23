@@ -15,7 +15,7 @@ bl_info = {
 "name": "Box deform",
 "description": "Temporary deforming rectangle on selected GP points",
 "author": "Samuel Bernou",
-"version": (0, 2, 4),
+"version": (0, 2, 5),
 "blender": (2, 83, 0),
 "location": "Ctrl+T in GP object/edit/paint mode",
 "warning": "",
@@ -69,6 +69,7 @@ def view_cage(obj):
     gpl = gp.layers
 
     coords = []
+    initial_mode = bpy.context.mode
 
     ## get points
     if bpy.context.mode == 'EDIT_GPENCIL':
@@ -233,6 +234,11 @@ def view_cage(obj):
 
     mod.object = cage
 
+    if initial_mode == 'PAINT_GPENCIL':
+        mod.layer = gpl.active.info
+
+    # note : if initial was Paint, changed to Edit
+    #        so vertex attribution is valid even for paint
     if bpy.context.mode == 'EDIT_GPENCIL':
         mod.vertex_group = vg.name
 
@@ -323,6 +329,15 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
             # if context.window_manager.operators:#can be empty
             #     print('\nlast name', context.window_manager.operators[-1].name)
 
+        # auto interpo
+        if self.auto_interp:
+            if event.type in {'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'ZERO',} and event.value == 'PRESS':
+                self.set_lattice_interp('KEY_BSPLINE')
+            if event.type in {'DOWN_ARROW', "UP_ARROW", "RIGHT_ARROW", "LEFT_ARROW"} and event.value == 'PRESS' and event.ctrl:
+                # not after actual change, can't check "self.lat.points_u == self.lat.points_v == 2"
+                self.set_lattice_interp('KEY_BSPLINE')
+            if event.type in {'ONE'} and event.value == 'PRESS':
+                self.set_lattice_interp('KEY_LINEAR')
 
         # Single keys
         if event.type in {'H'}:
@@ -394,8 +409,9 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
 
         # change modes
         if event.type in {'M'} and event.value == 'PRESS':
-            self.lat.interpolation_type_u = self.lat.interpolation_type_v = self.lat.interpolation_type_w = \
-                'KEY_BSPLINE' if self.lat.interpolation_type_u == 'KEY_LINEAR' else 'KEY_LINEAR'#result assign to 3 prop above
+            self.auto_interp = False
+            interp = 'KEY_BSPLINE' if self.lat.interpolation_type_u == 'KEY_LINEAR' else 'KEY_LINEAR'
+            self.set_lattice_interp(interp)
             return {"RUNNING_MODAL"}
 
         # Valid
@@ -433,6 +449,8 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
 
         return {'PASS_THROUGH'}
 
+    def set_lattice_interp(self, interp):
+        self.lat.interpolation_type_u = self.lat.interpolation_type_v = self.lat.interpolation_type_w = interp
 
     def cancel(self, context):
         self.restore_prefs(context)
@@ -444,20 +462,23 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
 
     def store_prefs(self, context):
         # store_valierables <-< preferences
-        context.scene.boxdeform.use_drag_immediately = context.preferences.inputs.use_drag_immediately 
-        context.scene.boxdeform.drag_threshold_mouse = context.preferences.inputs.drag_threshold_mouse 
-        context.scene.boxdeform.drag_threshold_tablet = context.preferences.inputs.drag_threshold_tablet 
+        self.use_drag_immediately = context.preferences.inputs.use_drag_immediately 
+        self.drag_threshold_mouse = context.preferences.inputs.drag_threshold_mouse 
+        self.drag_threshold_tablet = context.preferences.inputs.drag_threshold_tablet
+        self.use_overlays = context.space_data.overlay.show_overlays
 
     def restore_prefs(self, context):
         # preferences <-< store_valierables
-        context.preferences.inputs.use_drag_immediately = context.scene.boxdeform.use_drag_immediately
-        context.preferences.inputs.drag_threshold_mouse = context.scene.boxdeform.drag_threshold_mouse
-        context.preferences.inputs.drag_threshold_tablet = context.scene.boxdeform.drag_threshold_tablet
+        context.preferences.inputs.use_drag_immediately = self.use_drag_immediately
+        context.preferences.inputs.drag_threshold_mouse = self.drag_threshold_mouse
+        context.preferences.inputs.drag_threshold_tablet = self.drag_threshold_tablet
+        context.space_data.overlay.show_overlays = self.use_overlays
     
     def set_prefs(self, context):
         context.preferences.inputs.use_drag_immediately = True
         context.preferences.inputs.drag_threshold_mouse = 1
         context.preferences.inputs.drag_threshold_tablet = 3
+        context.space_data.overlay.show_overlays = True
 
     def invoke(self, context, event):
         ## Restrict to 3D view
@@ -536,6 +557,7 @@ valid:Spacebar/Enter/Tab, cancel:Del/Backspace"
         if self.prefs.use_clic_drag:#Store the active tool since we will change it
             self.org_lattice_toolset = bpy.context.workspace.tools.from_space_view3d_mode(bpy.context.mode, create=False).idname# Tweaktoolcode    
         
+        self.auto_interp = self.prefs.auto_swap_deform_type
         #store (scene properties needed in case of ctrlZ revival)
         self.store_prefs(context)
         self.set_prefs(context)
@@ -567,6 +589,10 @@ class BOXD_addon_prefs(bpy.types.AddonPreferences):
                ),
                name='Starting interpolation', default='KEY_LINEAR', description='Choose default interpolation when entering mode')
 
+    auto_swap_deform_type : bpy.props.BoolProperty(
+        name='Auto swap interpolation mode',
+        description="Automatically set interpolation to 'spline' when subdividing lattice\n Back to 'linear' when",
+        default=True)
 
     def draw(self, context):
             layout = self.layout
@@ -582,6 +608,9 @@ class BOXD_addon_prefs(bpy.types.AddonPreferences):
                 layout.separator()
                 layout.label(text="Deformer type can be changed during modal with 'M' key, this settings is for default behavior", icon='INFO')
                 layout.prop(self, "default_deform_type")
+
+                layout.prop(self, "auto_swap_deform_type")
+                layout.label(text="Once 'M' is hit, auto swap is desactivated to stay in your chosen mode", icon='INFO')
 
             if self.pref_tabs == 'TUTO':
 
@@ -615,21 +644,6 @@ class BOXD_addon_prefs(bpy.types.AddonPreferences):
 
                 #col.operator("wm.url_open", text="Demo").url = "DEMO URL"
 
-
-## --- PROPERTIES (store prefs)
-
-class BOXD_PGT_store_default(bpy.types.PropertyGroup) :
-    # use_drag_immediately - bool (default False)
-    # drag_threshold_mouse - int (px) default 3
-    # drag_threshold_tablet - int (px) default 10
-    use_drag_immediately : bpy.props.BoolProperty(
-        name="Realease Confirms", description="settings in mouse input", default=False)
-
-    drag_threshold_mouse : bpy.props.IntProperty(
-        name="Mouse Drag Threshold", description="settings in mouse input", default=3)
-
-    drag_threshold_tablet : bpy.props.IntProperty(
-        name="Tablet Drag Threshold", description="settings in mouse input", default=10)
 
 
 def get_addon_prefs():
@@ -672,7 +686,6 @@ def unregister_keymaps():
 
 classes = (
 BOXD_addon_prefs,
-BOXD_PGT_store_default,
 BOXD_OT_lattice_gp_deform,
 )
 
@@ -681,7 +694,6 @@ def register():
         return
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.boxdeform = bpy.props.PointerProperty(type = BOXD_PGT_store_default)
     register_keymaps()
 
 def unregister():
@@ -690,7 +702,46 @@ def unregister():
     unregister_keymaps()
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-    del bpy.types.Scene.boxdeform
 
 if __name__ == "__main__":
     register()
+
+
+"""     
+redister :
+BOXD_PGT_store_default,
+
+# old in modal store
+    def store_prefs(self, context):
+        # store_valierables <-< preferences
+        context.scene.boxdeform.use_drag_immediately = context.preferences.inputs.use_drag_immediately 
+        context.scene.boxdeform.drag_threshold_mouse = context.preferences.inputs.drag_threshold_mouse 
+        context.scene.boxdeform.drag_threshold_tablet = context.preferences.inputs.drag_threshold_tablet 
+        self.use_overlays = context.space_data.overlay.show_overlays
+
+    def restore_prefs(self, context):
+        # preferences <-< store_valierables
+        context.preferences.inputs.use_drag_immediately = context.scene.boxdeform.use_drag_immediately
+        context.preferences.inputs.drag_threshold_mouse = context.scene.boxdeform.drag_threshold_mouse
+        context.preferences.inputs.drag_threshold_tablet = context.scene.boxdeform.drag_threshold_tablet
+        context.space_data.overlay.show_overlays = self.use_overlays
+
+## --- PROPERTIES (store prefs)
+
+class BOXD_PGT_store_default(bpy.types.PropertyGroup) :
+    # use_drag_immediately - bool (default False)
+    # drag_threshold_mouse - int (px) default 3
+    # drag_threshold_tablet - int (px) default 10
+    use_drag_immediately : bpy.props.BoolProperty(
+        name="Realease Confirms", description="settings in mouse input", default=False)
+
+    drag_threshold_mouse : bpy.props.IntProperty(
+        name="Mouse Drag Threshold", description="settings in mouse input", default=3)
+
+    drag_threshold_tablet : bpy.props.IntProperty(
+        name="Tablet Drag Threshold", description="settings in mouse input", default=10)
+
+register/unregister :
+    bpy.types.Scene.boxdeform = bpy.props.PointerProperty(type = BOXD_PGT_store_default)
+    del bpy.types.Scene.boxdeform
+"""
