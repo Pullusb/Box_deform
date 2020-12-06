@@ -2,7 +2,7 @@
 
 Blender addon - Modal that create temporary deforming rectangle around selected GP points.
 
-### Note : Since Blender 2.91, `Box deform` is integrated in the official addon `Grease pencil tools` bundled in Blender. You just have to activate it.
+### Note : Since Blender 2.91, `Box deform` is integrated in the official addon `Grease Pencil Tools` bundled in Blender. You just have to activate it.
 
 ## [Download latest](https://github.com/Pullusb/Box_deform/archive/master.zip)
 
